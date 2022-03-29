@@ -162,29 +162,42 @@ class ReadRoot(ReadFileBase):
 
         self.recursive = recursive
 
-        self.tree = uproot.open(self.path)
         self._read()
 
     def _read(self):    
-        # Read option for a root file
+        # Read when there is only a file entered
         if os.path.isfile(self.path):
             _, ext = os.path.splitext(self.path)
-            if (ext == "root"):
+            if (ext == ".root"):
                 if (self.pattern_output == "first"):
                     # create list of number termination
-                    self._read_first()
+                    self.df = self._read_first()
             else:
                 # TO DO: create standard errors
-                print("please enter a valid root file")
+                print("please enter a valid .root file")
                 exit(0)
     
+        # Read from a given directory
         elif os.path.isdir(self.path):
             if (self.recursive):
                 pass
             else:
-                pass             
+                file_list = glob.glob(self.path + "*.root")
+                if (len(file_list) == 0):
+                    print("please check the existense of file roots in yout directory")
+                    exit(0)
+                else:
+                    self.df = pd.DataFrame()
+                    for file in file_list:
+                        print(self.path + file)
+                        self.df = self.df.append(self._read_first(path=file))
 
-    def _read_first(self):
+    def _read_first(self, path=""):
+        if path:
+            self.tree = uproot.open(path)
+        else:
+            self.tree = uproot.open(self.path)
+
         keys = self.tree.keys()
 
         # choose keys with the correct base name
@@ -196,7 +209,9 @@ class ReadRoot(ReadFileBase):
         
         # get the data we are interested
         final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
-        self.df = self.df = self.tree[final_branch].arrays(self.leafs, library="pd")
+        data_frame = self.tree[final_branch].arrays(self.leafs, library="pd")
+
+        return data_frame
 
 
 class FilesManipulator:

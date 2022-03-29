@@ -2,6 +2,7 @@ from numpy import save
 from nndm_library import ReadFileBase
 from nndm_library import ReadLhe
 from nndm_library import FilesManipulator
+from nndm_library import ReadRoot
 
 # Returns the parameters in the name
 print("Read parameters")
@@ -40,3 +41,9 @@ print("file " + save_file + " exists?", "yes" if exists(save_file) else "no")
 print("\n" * 2)
 print("*" * 50)
 print("Read Root file")
+file = ReadRoot("tests/data_tests/background/v_e_scattering/onantinuelepton10125.root")
+print(file.df)
+
+print("\n" * 2)
+print("*" * 50)
+print("Read background from single directory")

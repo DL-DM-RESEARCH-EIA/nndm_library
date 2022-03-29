@@ -1,7 +1,9 @@
 from asyncore import read
+from reprlib import recursive_repr
 import sys
 import os
 from pathlib import Path
+from matplotlib.container import BarContainer
 import numpy as np
 import glob
 import pandas as pd
@@ -135,9 +137,12 @@ class ReadLhe(ReadFileBase):
         return self.dic_var["energy"], self.dic_var["px"], self.dic_var["py"], self.dic_var["pz"]
 
 # This class read the output data relating to the electron scaterings
-class ReadRoot:
+class ReadRoot(ReadFileBase):
+    
     def __init__(
-        self, path: str, out_channel="v_e_scattering/onantinuelepton10125.root"
+        self, path: str, output_base_tree="treeout", pattern_output="first",
+        output_base_middle_branch = "/e/out",
+        leafs = ["out.t", "out.x", "out.y", "out.z", "out._mass"], recursive=False
     ):
         """
         DataReader: Class to read the labeled data coming in ROOT format
@@ -145,19 +150,53 @@ class ReadRoot:
 
         Input:
         - path: string. The direction to the root file containing the event information
-        - out_channel: string. Path to the onantinuelepton file to the tree output
+        - branches
+        - out_base_name: String
         """
+        ReadFileBase.__init__(self, path) 
 
-        self.tree = uproot.open(path)
-        # Read only what it it needed for time purposes, note that this does not works
-        #   when there are several branches
-        branches = ["out.t", "out.x", "out.y", "out.z", "out._mass"]
+        self.output_base_tree = output_base_tree
+        self.pattern_output = pattern_output
+        self.output_base_middle_branch = output_base_middle_branch
+        self.leafs = leafs
 
-        if path == out_channel:
-            self.df = self.tree["treeout;2"]["e/out"].arrays(branches, library="pd")
-        else:
-            self.df = self.tree["treeout;3"]["e/out"].arrays(branches, library="pd")
+        self.recursive = recursive
 
+        self.tree = uproot.open(self.path)
+        self._read()
+
+    def _read(self):    
+        # Read option for a root file
+        if os.path.isfile(self.path):
+            _, ext = os.path.splitext(self.path)
+            if (ext == "root"):
+                if (self.pattern_output == "first"):
+                    # create list of number termination
+                    self._read_first()
+            else:
+                # TO DO: create standard errors
+                print("please enter a valid root file")
+                exit(0)
+    
+        elif os.path.isdir(self.path):
+            if (self.recursive):
+                pass
+            else:
+                pass             
+
+    def _read_first(self):
+        keys = self.tree.keys()
+
+        # choose keys with the correct base name
+        filter_by_base_name = [key for key in keys if self.output_base_tree in key]
+        
+        # chose the first one
+        numeric_values = [int(filter_by_base_name[i].split(";", 1)[1]) for i in range(len(filter_by_base_name))]
+        index_min = numeric_values.index(min(numeric_values))
+        
+        # get the data we are interested
+        final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
+        self.df = self.df = self.tree[final_branch].arrays(self.leafs, library="pd")
 
 
 class FilesManipulator:

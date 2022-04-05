@@ -34,6 +34,6 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent"
     ],
-    packages=["nndm_library", "nndm_library.lib"],
+    packages=["nndm_library", "nndm_library.utils"],
     include_package_data=True,
 )

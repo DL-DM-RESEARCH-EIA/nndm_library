@@ -15,13 +15,13 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 # This call to setup() does all the work
 setup(
     name="nnmd-library",
-    version="0.0.1",
+    version="0.0.2",
     description="Demo library",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://medium-multiply.readthedocs.io/",
-    author="Joffrey Bienvenu",
-    author_email="example@email.com",
+    author="Andrés Felipe Gómez, Jose Miguel Muñoz Arias, Esteban Vásquez, Amalia Betancur, Guillermoe Palacio",
+    author_email="andres.gomez27@udea.edu.co, ",
     license="MIT",
     classifiers=[
         "Intended Audience :: Developers",
@@ -34,6 +34,6 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent"
     ],
-    packages=["nndm_library"],
+    packages=["nndm_library", "nndm_library.lib"],
     include_package_data=True,
 )

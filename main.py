@@ -1,4 +1,3 @@
-from numpy import save
 from nndm_library import ReadFileBase
 from nndm_library import ReadLhe
 from nndm_library import FilesManipulator
@@ -10,7 +9,6 @@ print("*" * 50)
 read_file = ReadFileBase("eta_decay_events_mk_0.014980679431428716_eps2_3.883209914996183e-10.lhe")
 type_particle, mk, eps2 = read_file.extract_params_from_path()
 print(mk, type(mk))
-
 
 # Return the quadri-momenta values of the file in question 
 print("\n" * 2)

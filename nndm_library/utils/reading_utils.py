@@ -148,10 +148,32 @@ class ReadRoot(ReadFileBase):
         DataReader: Class to read the labeled data coming in ROOT format
         -----------------------------------------------------------------
 
-        Input:
-        - path: string. The direction to the root file containing the event information
-        - branches
-        - out_base_name: String
+
+        Attributtes
+        ------------
+                    path: string. 
+                        The direction to the root file containing the event information
+                    output_base_name: string. 
+                        Name bas of the first node of the tree that has the data. For instance, if the base name 
+                        is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
+                    pattern_output: string 
+                        The idea is this parameter define a methodology to choose from the possible first nodes 
+                        that have a given output_base_name. As an example, first would choose treeoout1 in the 
+                        example before.
+                    output_base_middle_branch: string 
+                        middle branch that goes after the selected first node chosen by  the output pattern. If this 
+                        variable is "e/out", following the example the tree to consult at the moment would be 
+                        treeout1/e/out/
+                    leafs: list 
+                        what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
+                        giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
+                        treeout1/e/out/out.y
+                    data: dataframe that contains all the branches specified by the parameters below.
+
+        Methods
+        ------------
+
+
         """
         ReadFileBase.__init__(self, path) 
 
@@ -164,33 +186,49 @@ class ReadRoot(ReadFileBase):
 
         self._read()
 
-    def _read(self):    
-        # Read when there is only a file entered
+    def _sanity_check(self):
+        """
+        This function cheks that the parameters entered, or the combination of them are acutally valid.
+        """
+        pass
+
+    def _read(self):
+        """
+        General method to read independently from the initialization from the class.
+        """
+
+        #########
+        # Read when self.path is a file
         if os.path.isfile(self.path):
             _, ext = os.path.splitext(self.path)
             if (ext == ".root"):
                 if (self.pattern_output == "first"):
                     # create list of number termination
-                    self.df = self._read_first()
+                    self.data = self._read_first()
             else:
                 # TO DO: create standard errors
                 print("please enter a valid .root file")
                 exit(0)
-    
-        # Read from a given directory
+        
+        ##########
+        # Read when self.path is a directory
         elif os.path.isdir(self.path):
+            ##
+            # Recursive reading means that will find all the .root files inside in 
+            #  any of the subsequen directories
             if (self.recursive):
                 pass
+            ##
+            # When non-recursive it will simply try to read the .root files in such a directory
             else:
                 file_list = glob.glob(self.path + "*.root")
                 if (len(file_list) == 0):
-                    print("please check the existense of file roots in yout directory")
+                    print("please check the existense of .root files in the specified directory %s" % self.path)
                     exit(0)
                 else:
-                    self.df = pd.DataFrame()
+                    self.data = pd.DataFrame()
                     for file in file_list:
-                        print(self.path + file)
-                        self.df = self.df.append(self._read_first(path=file))
+                        self.data = self.data.append(self._read_first(path=file))
 
     def _read_first(self, path=""):
         if path:

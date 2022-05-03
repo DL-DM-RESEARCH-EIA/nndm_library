@@ -15,12 +15,12 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 # This call to setup() does all the work
 setup(
     name="nnmd-library",
-    version="0.0.2",
+    version="0.0.3",
     description="Demo library",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://medium-multiply.readthedocs.io/",
-    author="Andrés Felipe Gómez, Jose Miguel Muñoz Arias, Esteban Vásquez, Amalia Betancur, Guillermoe Palacio",
+    author="Andrés Felipe Gómez, Jose Miguel Muñoz Arias, Esteban Vásquez, Amalia Betancur, Guillermo Palacio",
     author_email="andres.gomez27@udea.edu.co, ",
     license="MIT",
     classifiers=[

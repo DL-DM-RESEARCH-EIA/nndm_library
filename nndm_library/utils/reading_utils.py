@@ -1,4 +1,5 @@
 from asyncore import read
+from posixpath import split
 from reprlib import recursive_repr
 import sys
 import os
@@ -14,10 +15,26 @@ import numpy as np
 import tqdm
 import functools
 import pylhe
+import re 
 
+def isfloat(string):
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
 
 class Constants:
+    # Chosen from standard
     ELECTRON_ID = 11
+
+    # TO DO: find standar name for particles
+    #   chosen in arbitrary way to the moment
+    ETA_ID = 1
+    PION_ID = 2
+
+    # Definig map dictionary
+    name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID}
 
 class ReadFileBase:
     def __init__(self, path):
@@ -26,19 +43,24 @@ class ReadFileBase:
     def extract_params_from_path(self):
         """
         path: path of the file, which is assumed to contain the values of the eps and the mass to be extracted from it
-        format example is as follows: eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe
+        format example is as follows: eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe. In more general term, it i
+            {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
 
         return:
-            particle type, mass, eps2
+            dictionary with all extracted data
         """
-        splitted = self.path.split("_")
-        mk = float(splitted[-3])
-        eps2 = float(splitted[-1].split(".lhe")[0])
-        if "eta" in self.path:
-            type_particle = 0
-        elif "pion" in self.path:
-            type_particle = 1
-        return type_particle, mk, eps2
+        splitted = os.path.splitext(os.path.basename(self.path))[0].split("_")
+        res_dict = {}
+
+        res_dict['particle_type'] = Constants.name_to_id[splitted[0]]
+
+        # going over splitted values and creating dictionary
+        for i in range(len(splitted)):
+            print(splitted[i], splitted[i].isnumeric())
+            if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
+                res_dict[splitted[i - 1]] = splitted[i]
+
+        return res_dict
 
 
 # This class read the output data relating to the electron scaterings

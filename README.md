@@ -38,7 +38,6 @@ print(file.data)
 print(np.unique(file.data["id"]))
 ```
 
-
 Reading root files
 
 Again, we will read all the data in the files and save it in a dataframe by default.
@@ -70,4 +69,25 @@ file = ReadRoot("tests/data_tests/background/", output_base_tree="treeout",
                 pattern_output="first", output_base_middle_branch = "/e/out",
                 leafs = ["out.t", "out.x", "out.y", "out.z", "out._mass"], recursive=True)
 print(file.df)
+```
+
+Othe utils. 
+
+```Python
+# Extract param names and values, along with particl type (check Constants class for the last)
+
+read_file = ReadFileBase("eta_decay_events_mk_0.014980679431428716_eps2_3.883209914996183e-10.lhe")
+res_dict = read_file.extract_params_from_path()
+
+# If you need to read different files and classify them according to their parameters.
+
+file_manipulator = FilesManipulator("tests/data_tests/signal/*.lhe")
+file_manipulator.fill_up_scan()
+print(file_manipulator.self_scan())
+
+# saving your scan results
+from os.path import exists
+save_file = "tests/data_tests/signal/signal.pickle"
+file_manipulator.save_scan(save_file)
+print("file " + save_file + " exists?", "yes" if exists(save_file) else "no")
 ```

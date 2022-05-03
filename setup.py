@@ -13,27 +13,8 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 # This call to setup() does all the work
-setup(
-    name="nnmd-library",
-    version="0.0.3",
-    description="Demo library",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://medium-multiply.readthedocs.io/",
-    author="Andrés Felipe Gómez, Jose Miguel Muñoz Arias, Esteban Vásquez, Amalia Betancur, Guillermo Palacio",
-    author_email="andres.gomez27@udea.edu.co, ",
-    license="MIT",
-    classifiers=[
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Operating System :: OS Independent"
-    ],
-    packages=["nndm_library", "nndm_library.utils"],
-    include_package_data=True,
-)
+from setuptools import setup
+
+if __name__ == '__main__':
+    setup(long_description=long_description,
+          long_description_content_type="text/markdown")

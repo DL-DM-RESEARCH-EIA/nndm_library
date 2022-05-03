@@ -7,12 +7,10 @@ import glob
 import pandas as pd
 import pickle
 import uproot
-import tqdm
 import numpy as np
 import tqdm
 import functools
 import pylhe
-import re 
 
 def isfloat(string):
     try:
@@ -53,7 +51,6 @@ class ReadFileBase:
 
         # going over splitted values and creating dictionary
         for i in range(len(splitted)):
-            print(splitted[i], splitted[i].isnumeric())
             if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
                 res_dict[splitted[i - 1]] = splitted[i]
 
@@ -333,7 +330,7 @@ class ReadLhe(ReadFileBase):
         return: momentum and energy
             px, py, pz, energy
         """
-        return self.data["energy"], self.data["px"], self.data["py"], self.data["pz"]
+        return self.data["e"], self.data["px"], self.data["py"], self.data["pz"]
 
 class FilesManipulator:
     def __init__(self, path, verbose=0):
@@ -355,7 +352,7 @@ class FilesManipulator:
             "px": [],
             "py": [],
             "pz": [],
-            "energy": [],
+            "e": [],
         }
 
     def fill_up_scan(self):
@@ -367,8 +364,8 @@ class FilesManipulator:
             typ, mk, eps2 = read_file.extract_params_from_path()
             self.scan["id"].append(id), self.scan["typ"].append(typ), self.scan["mk"].append(mk)
             self.scan["eps2"].append(eps2), self.scan["name"].append(os.path.basename(name))
-            energy, px, py, pz = read_file.get_momenta()
-            for var in ["px", "py", "pz", "energy"]:
+            e, px, py, pz = read_file.get_momenta()
+            for var in ["px", "py", "pz", "e"]:
                 self.scan[var].append(eval(var))
 
     def save_scan(self, save_name="complete_task.pickle"):

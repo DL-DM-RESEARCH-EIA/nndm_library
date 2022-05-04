@@ -86,4 +86,3 @@ print(np.unique(file.data["status"]))
 file = ReadLhe(path=filename)
 print(file.data)
 print(np.unique(file.data["id"]))
-

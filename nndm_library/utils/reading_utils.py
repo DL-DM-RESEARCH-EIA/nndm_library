@@ -56,51 +56,63 @@ class ReadFileBase:
 
         return res_dict
 
+    def _file_list(self):
+        # Recursive reading means that will find all the .root files inside in 
+        #  any of the subsequen directories
+        if (self.recursive):
+            file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*.root'))]
+        # When non-recursive it will simply try to read the .root files in such a directory
+        else:
+            file_list = glob.glob(self.path + "*.root")
+
+        return file_list
+
+
 
 # This class read the output data relating to the electron scaterings
 class ReadRoot(ReadFileBase):
-    
+    """
+    Class to read the labeled data coming in ROOT format
+
+    Parameters: path: string. 
+                    The direction to the root file containing the event information
+                output_base_name: string. 
+                    Name bas of the first node of the tree that has the data. For instance, if the base name 
+                    is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
+                pattern_output: string 
+                    The idea is this parameter define a methodology to choose from the possible first nodes 
+                    that have a given output_base_name. As an example, first would choose treeoout1 in the 
+                    example before.
+                output_base_middle_branch: string 
+                    middle branch that goes after the selected first node chosen by  the output pattern. If this 
+                    variable is "e/out", following the example the tree to consult at the moment would be 
+                    treeout1/e/out/
+                leafs: list 
+                    what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
+                    giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
+                    treeout1/e/out/out.y
+                data: dataframe that contains all the branches specified by the parameters below as name for the rows, and the
+                    data associated with such names goes in the columns.
+                files_dir: dictionary
+                    it saves all the files from which data was readed to construct the data frame and it shows the integer
+                    associeted with it that identifies it in the dataframe constructed.
+                relabel_events: bool 
+                    there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
+                        particle that interact in it. When relabel_events is True, the values of id are associated unequivocally
+                        with each event.  
+
+    Methods
+    ------------
+        No public methods.
+
+    """
+
     def __init__(
         self, path: str, output_base_tree="treeout", pattern_output="first",
         output_base_middle_branch = "/e/out",
         leafs = ["out.t", "out.x", "out.y", "out.z", "out._mass"], recursive=False,
         files_dir=None, relabel_events=True 
     ):
-        """
-        Class to read the labeled data coming in ROOT format
-
-        Parameters: path: string. 
-                        The direction to the root file containing the event information
-                    output_base_name: string. 
-                        Name bas of the first node of the tree that has the data. For instance, if the base name 
-                        is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
-                    pattern_output: string 
-                        The idea is this parameter define a methodology to choose from the possible first nodes 
-                        that have a given output_base_name. As an example, first would choose treeoout1 in the 
-                        example before.
-                    output_base_middle_branch: string 
-                        middle branch that goes after the selected first node chosen by  the output pattern. If this 
-                        variable is "e/out", following the example the tree to consult at the moment would be 
-                        treeout1/e/out/
-                    leafs: list 
-                        what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
-                        giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
-                        treeout1/e/out/out.y
-                    data: dataframe that contains all the branches specified by the parameters below as name for the rows, and the
-                        data associated with such names goes in the columns.
-                    files_dir: dictionary
-                        it saves all the files from which data was readed to construct the data frame and it shows the integer
-                        associeted with it that identifies it in the dataframe constructed.
-                    relabel_events: bool 
-                        there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
-                            particle that interact in it. When relabel_events is True, the values of id are associated unequivocally
-                            with each event.  
-
-        Methods
-        ------------
-            No public methods.
-
-        """
         ReadFileBase.__init__(self, path) 
 
         self.output_base_tree = output_base_tree
@@ -114,12 +126,6 @@ class ReadRoot(ReadFileBase):
         self.files_dir = files_dir
 
         self._read()
-
-    def _sanity_check(self):
-        """
-        This function cheks that the parameters entered, or the combination of them are acutally valid.
-        """
-        pass
 
     def _read(self):
         """
@@ -142,17 +148,6 @@ class ReadRoot(ReadFileBase):
                 exit(0)
             else:
                 self._append_df_of_file_list(file_list)
-
-    def _file_list(self):
-        # Recursive reading means that will find all the .root files inside in 
-        #  any of the subsequen directories
-        if (self.recursive):
-            file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*.root'))]
-        # When non-recursive it will simply try to read the .root files in such a directory
-        else:
-            file_list = glob.glob(self.path + "*.root")
-
-        return file_list
 
     def _read_single_file_safe(self):
         #########
@@ -231,16 +226,35 @@ def index_mapper(index, last_index):
         return tuple(index_values)
 
 class ReadLhe(ReadFileBase):
-    def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, recursive=False,
-        files_dir=None, relabel_events=True, verbose=1):
-        """
-        Class to read the labeled data coming in lhe format
-        Parameters: variables_interest: list
-                        names of the variables to extract from the lhe. eg. ["energy","angle"], 
-                        ["energy","px","py"] .... By default: ["energy","angle"]
-                    path: string. 
-                        The direction to the file containing the event information
-        """
+    """
+    Class to read the data coming in lhe format.
+        
+    :param path: the direction to the file containing all the events information.
+    :type path: string
+
+    :param partcile_ids: ids of the particles to extract from the file according to the pdg, 
+        By default: None, which means exctract all the particles.
+    :type partcile_ids: list of integers
+
+    :param var_of_interest: names of the variables to extract from the lhe. eg. ["e","angle"], ["e","px","py"] 
+        .... By default: None, which means exctract all the variables.
+    :type var_of_interest: list of strings
+
+    :param outgoing: filtrate to obtain all the outgoing particles
+    :type outgoing: bool
+
+    :param files_dir: directory where the files are to be found
+    :type files_dir: string
+
+    :param recursive: read all the .lhe files found in all paths inside a given files_dir
+    :type recursive: bool
+
+    :param verbose: show progress reading all the .lhe files
+    :type verbose: bool
+    """
+    def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, files_dir=None, 
+        recursive=False, relabel_events=True, verbose=1):
+
 
         ReadFileBase.__init__(self, path) 
         self.var_of_interest = var_of_interest
@@ -324,10 +338,7 @@ class ReadLhe(ReadFileBase):
 
     def get_momenta(self):
         """
-        name: name of the file, which is assumed to contain the values of the eps and the mass to be extracted from it
-        format example is as follows: eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe
-
-        return: momentum and energy
+        return: momentum and energy arrays
             px, py, pz, energy
         """
         return self.data["e"], self.data["px"], self.data["py"], self.data["pz"]

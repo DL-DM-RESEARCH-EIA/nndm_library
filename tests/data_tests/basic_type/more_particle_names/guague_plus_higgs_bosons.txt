@@ -1,0 +1,14 @@
+particle_name particle_id
+g             9
+gamma         22
+Z0            23
+W+            24
+H0_1          25
+Z0_2          32
+Z0_3          33
+W+_2          34
+H0_2          35
+H0_3          36
+H+            37
+H++           38
+H0_4          40

@@ -8,9 +8,10 @@ import pandas as pd
 import pickle
 import uproot
 import numpy as np
-import tqdm
+# import tqdm #TO DO
 import functools
 import pylhe
+import abc
 
 def isfloat(string):
     try:
@@ -31,18 +32,55 @@ class Constants:
     # Definig map dictionary
     name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID}
 
-class ReadFileBase:
-    def __init__(self, path):
+def index_mapper(index, last_index):
+    """
+    When appending data frames, the first index of the new dataframe must be shifted
+        to end up with unique ids. 
+    """
+
+    if type(index) == int:
+        return index + last_index
+    else:
+        index_values = list(index)
+        index_values[0] = index_values[0] + last_index
+        return tuple(index_values)
+
+class ReadFileBase(metaclass=abc.ABCMeta):
+    """
+    :param path: the direction to the file containing all the events information.
+    :type path: string
+
+    :param recursive: read all the .lhe files found in all paths inside a given files_dir
+    :type recursive: bool
+
+    :param ext: extension of the files to read
+    :type ext: str
+
+    :type relabel_events: bool 
+    :param relabel_events: there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
+        particle that interact in it. When relabel_events is True, the values of id are associated unequivocally with each event.
+
+    :var data: dataframe with the read events
+    :type data: dataframe
+
+    :var files_dir: directory with the name of the files read and its id
+    :type data: dict
+    """
+    
+    def __init__(self, path, recursive=False, ext='.txt', relabel_events=False):
         self.path = path
+        self.recursive = recursive
+        self.ext = ext
+        self.relabel_events = relabel_events
+        
+        self._read()
 
     def extract_params_from_path(self):
         """
-        path: path of the file, which is assumed to contain the values of the eps and the mass to be extracted from it
-        format example is as follows: eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe. In more general term, it i
-            {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
+        Format is as follows: {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
+        An example would be eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe.
 
-        return:
-            dictionary with all extracted data
+        :return: dictionary with all extracted data
         """
         splitted = os.path.splitext(os.path.basename(self.path))[0].split("_")
         res_dict = {}
@@ -56,16 +94,224 @@ class ReadFileBase:
 
         return res_dict
 
+    def _read_func(self, x):
+        return x
+
+    def _check_right_path_is_open(self, path=""):
+        """
+        Check if path is no specified to return self.path. It is specified when working with directories 
+            to go over each file, thenit would retuen path.
+        """
+
+        # opening correct file for each case (directory and file)
+        if path:
+            self.file = self._read_func(path)
+        else:
+            self.file = self._read_func(self.path)
+
+    def _read_single_file_safe(self, path=''): 
+        self._check_right_path_is_open(path)
+
+        if os.path.isfile(self.file):
+            _, ext = os.path.splitext(self.file)
+            if ext == self.ext:
+                self._read_single_file()
+            else:
+                # TO DO: create standard errors
+                print("please enter a valid %s file" % (self.ext))
+                exit(0)
+
+    def _read_single_file(self, path=''):
+        self.data = pd.read_csv(self.file, sep='\s+')
+
     def _file_list(self):
         # Recursive reading means that will find all the .root files inside in 
         #  any of the subsequen directories
         if (self.recursive):
-            file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*.root'))]
+            file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*' + self.ext))]
         # When non-recursive it will simply try to read the .root files in such a directory
         else:
-            file_list = glob.glob(self.path + "*.root")
+            file_list = glob.glob(self.path + '*' + self.ext)
 
+        print(self.path)
         return file_list
+
+    def _append_df_of_file_list(self, file_list):
+        res_dataframe = pd.DataFrame()
+        last_index = 0
+        for i, file_path in enumerate(file_list):
+            self._read_single_file_safe(path=file_path)
+            df_to_append = self.data 
+            df_to_append["path"] = i
+            self.files_dir[i] = file_path
+        
+            # Make first row is a unique identifier
+            if self.relabel_events:
+                df_to_append = df_to_append.rename(functools.partial(index_mapper, last_index), 
+                                                axis=0, level=df_to_append.index.names[0])
+                last_index = df_to_append.index.tolist()[-1]
+                if type(last_index) != int:
+                    last_index = last_index[0]
+
+            res_dataframe = pd.concat([res_dataframe, df_to_append], axis = 0)
+        self.data = res_dataframe
+
+    def _read_recursive_files(self):
+        """
+        Read when self.path is a directory, either all datain the given path or all
+            the files found recursively from the given path.
+        """
+        if os.path.isdir(self.path):
+            # files_dir is no mor None
+            self.files_dir = {}
+
+            file_list = self._file_list()
+            if len(file_list) == 0:
+                print("Please check the existense of %s files in the specified directory %s or use recursive=True"
+                      % (self.ext, self.path) )
+                exit(0)
+            else:
+                self._append_df_of_file_list(file_list)
+
+    def _read(self):
+        """
+        General method to read independently from the initialization from the class.
+        """
+        self._read_single_file_safe()
+        self._read_recursive_files()
+
+    def get_momenta(self):
+        """
+        :return: momentum and energy arrays
+            px, py, pz, energy
+        """
+        return self.data["e"], self.data["px"], self.data["py"], self.data["pz"]
+
+class ReadLhe(ReadFileBase):
+    """
+    Class to read the data coming in lhe format.
+        
+    :param path: the direction to the file containing all the events information.
+    :type path: string
+
+    :param partcile_ids: ids of the particles to extract from the file according to the pdg, 
+        By default: None, which means exctract all the particles.
+    :type partcile_ids: list of integers
+
+    :param var_of_interest: names of the variables to extract from the lhe. eg. ["e","angle"], ["e","px","py"] 
+        .... By default: None, which means exctract all the variables.
+    :type var_of_interest: list of strings
+
+    :param outgoing: filtrate to obtain all the outgoing particles
+    :type outgoing: bool
+
+    :param files_dir: directory where the files are to be found
+    :type files_dir: string
+
+    :param recursive: read all the .lhe files found in all paths inside a given files_dir
+    :type recursive: bool
+
+    :param verbose: show progress reading all the .lhe files
+    :type verbose: bool
+    
+    :var data: dataframe with the read events
+    :type data: dataframe
+
+    :var files_dir: directory with the name of the files read and its id
+    :type data: dict
+    """
+    def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, 
+        recursive=False, relabel_events=True, verbose=1):
+
+
+        ReadFileBase.__init__(self, path) 
+        self.var_of_interest = var_of_interest
+
+        self.verbose = verbose
+        self.outgoing = outgoing
+        self.particle_ids = particle_ids
+
+        self.ext = '.lhe'
+
+        self.data = self._init_data()
+        self._read()
+        self.data = pd.DataFrame.from_dict(self.data)
+
+    def _init_data(self, path=''):
+        data = {}
+        # Initialize when var_of_interest interest is passed as
+        #   parameter
+        if self.var_of_interest is not None:
+            for var in [v for v in self.var_of_interest]:
+                data[var] = np.array([])
+            return data
+
+        # Initialize when var_of_interest is None and there is a valid file
+        #  here is assumed that the same info is given for each event
+        if self.var_of_interest is None and os.path.isfile(self.path):
+            self._check_right_path_is_open(path)
+
+            for obj in self.file:
+                for particle in obj.particles:
+                    if isinstance(particle, pylhe.LHEParticle):
+                        for name in particle.fieldnames:
+                            data[name] = np.array([])
+                        return data
+
+
+
+    def _check_right_path_is_open(self, path=""):
+        """
+        Check if path is no specified to return self.path. It is specified when working with directories 
+            to go over each file, thenit would retuen path.
+        """
+
+        # opening correct file for each case (directory and file)
+        if path:
+            self.file = pylhe.readLHE(path)
+        else:
+            self.file = pylhe.readLHE(self.path)
+
+    def _filtrate_outgoing(self, particle):
+        """ 
+        Function returns the if particle is outgoing ot not when outgoing option is on, 
+            otherwise filter does not do anything.
+        """
+        if self.outgoing:
+            return particle.status == 1
+        else:
+            return True
+
+    def _filtrate_by_id(self, particle):
+        """
+        When particle_ids are given filtering is evaluated
+        """
+        if self.particle_ids is not None:
+            return particle.id in self.particle_ids
+        else:
+            return True
+
+    def _add_particle_data(self, particle):
+        """
+        Add particle data to the dict_var output
+        """
+        for name in self.data.keys():
+            self.data[name] = np.append(self.data[name], getattr(particle, name))
+
+    def _read_single_file(self, path=''):
+        """
+        Return dataframe associated with a single file.
+        """
+        for obj in self.file:
+            for particle in obj.particles:
+                if self._filtrate_outgoing(particle):
+                    # filtrating by type
+                    if self._filtrate_by_id(particle):
+                        # saving vars of interest
+                        self._add_particle_data(particle)
+
+    def _read_recursive_fliles(self):
+        pass
 
 
 
@@ -81,33 +327,26 @@ class ReadRoot(ReadFileBase):
         is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
     :type output_base_name: str 
 
-
-
-    pattern_output: string 
-        The idea is this parameter define a methodology to choose from the possible first nodes 
+    :param pattern_output: The idea is this parameter define a methodology to choose from the possible first nodes 
         that have a given output_base_name. As an example, first would choose treeoout1 in the 
         example before.
-    output_base_middle_branch: string 
-        middle branch that goes after the selected first node chosen by  the output pattern. If this 
-        variable is "e/out", following the example the tree to consult at the moment would be 
-        treeout1/e/out/
-    leafs: list 
-        what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
+    :type pattern_output: str 
+
+    :type output_base_middle_branch: str 
+    :param output_base_middle_branch: middle branch that goes after the selected first node chosen by  the output pattern. If this 
+        variable is "e/out", following the example the tree to consult at the moment would be treeout1/e/out/.
+
+    :type leafs: list of strings
+    :param leafs: what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
         giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
         treeout1/e/out/out.y
-    data: dataframe that contains all the branches specified by the parameters below as name for the rows, and the
-        data associated with such names goes in the columns.
-    files_dir: dictionary
-        it saves all the files from which data was readed to construct the data frame and it shows the integer
-        associeted with it that identifies it in the dataframe constructed.
-    relabel_events: bool 
-        there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
-            particle that interact in it. When relabel_events is True, the values of id are associated unequivocally
-            with each event.  
-
-    Methods
-    ------------
-        No public methods.
+    
+    :type files_dir: list of strings
+    :param files_dir: it saves all the files from which data was readed to construct the data frame and it shows 
+        the integer associeted with it that identifies it in the dataframe constructed.
+    :type relabel_events: bool 
+    :param relabel_events: there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
+        particle that interact in it. When relabel_events is True, the values of id are associated unequivocally with each event.
 
     """
 
@@ -127,6 +366,8 @@ class ReadRoot(ReadFileBase):
         self.recursive = recursive
         self.relabel_events = relabel_events
 
+        self.extension = ".root"
+
         self.files_dir = files_dir
 
         self._read()
@@ -139,8 +380,10 @@ class ReadRoot(ReadFileBase):
         self._read_recursive_fliles()
 
     def _read_recursive_fliles(self):
-        ##########
-        # Read when self.path is a directory
+        """
+        Read when self.path is a directory, either all datain the given path or all
+            the files found recursively from the given path.
+        """
         if os.path.isdir(self.path):
             # files_dir is no mor None
             self.files_dir = {}
@@ -161,13 +404,11 @@ class ReadRoot(ReadFileBase):
             if (ext == ".root"):
                 if (self.pattern_output == "first"):
                     # create list of number termination
-                    self.data = self._read_single_file()
+                     self._read_single_file()
             else:
                 # TO DO: create standard errors
                 print("please enter a valid .root file")
                 exit(0)
-
-
 
     def _read_single_file(self, path=""):
         """
@@ -216,148 +457,22 @@ class ReadRoot(ReadFileBase):
 
         self.data = pd.concat([self.data, df_to_append], axis = 0)
 
-def index_mapper(index, last_index):
+class FilesManipulator:
     """
-    When appending data frames, the first index of the new dataframe must be shifted
-        to end up with unique ids. 
-    """
-
-    if type(index) == int:
-        return index + last_index
-    else:
-        index_values = list(index)
-        index_values[0] = index_values[0] + last_index
-        return tuple(index_values)
-
-class ReadLhe(ReadFileBase):
-    """
-    Class to read the data coming in lhe format.
-        
+    Create structure to save the data in the .lhe files in the path given
+    Here we have pictorical description of the data structure:  
+        First, a list of ints is [int, int, ...] == [(int)].  So a list of a list of floats is: [[(float)], [(float)], ...] == [( [(float)] )]
+        {id: [(int)], typ: [(str)], mk: [(float)], eps2: [(float)], px: [[(float)], [(float)], ...], py: [( [(float)] )], pz: [( [(float)] )] }
+        Note that momentum and energy are a list of arrays, where each array correspons to a param point
+    
     :param path: the direction to the file containing all the events information.
     :type path: string
-
-    :param partcile_ids: ids of the particles to extract from the file according to the pdg, 
-        By default: None, which means exctract all the particles.
-    :type partcile_ids: list of integers
-
-    :param var_of_interest: names of the variables to extract from the lhe. eg. ["e","angle"], ["e","px","py"] 
-        .... By default: None, which means exctract all the variables.
-    :type var_of_interest: list of strings
-
-    :param outgoing: filtrate to obtain all the outgoing particles
-    :type outgoing: bool
-
-    :param files_dir: directory where the files are to be found
-    :type files_dir: string
-
-    :param recursive: read all the .lhe files found in all paths inside a given files_dir
-    :type recursive: bool
-
-    :param verbose: show progress reading all the .lhe files
-    :type verbose: bool
     """
-    def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, files_dir=None, 
-        recursive=False, relabel_events=True, verbose=1):
 
-
-        ReadFileBase.__init__(self, path) 
-        self.var_of_interest = var_of_interest
-
-        self.verbose = verbose
-        self.outgoing = outgoing
-        self.particle_ids = particle_ids
-
-        self.data = self._init_data()
-        self._read_single_file()
-        self.data = pd.DataFrame.from_dict(self.data)
-
-    def _init_data(self, path=''):
-        data = {}
-        if self.var_of_interest is not None:
-            for var in [v for v in self.var_of_interest]:
-                data[var] = np.array([])
-            return data
-
-        if self.var_of_interest is None and os.path.isfile(self.path):
-            self._check_right_path_is_open(path)
-
-            for obj in self.file:
-                for particle in obj.particles:
-                    if isinstance(particle, pylhe.LHEParticle):
-                        for name in particle.fieldnames:
-                            data[name] = np.array([])
-                        return data
-
-    def _check_right_path_is_open(self, path=""):
-        # Check is path is no specified. It is specified when working with directories to go over
-        #   each file.
-
-        # opening correct file for each case (directory and file)
-        if path:
-            self.file = pylhe.readLHE(path)
-        else:
-            self.file = pylhe.readLHE(self.path)
-
-    def _filtrate_outgoing(self, particle):
-        """ Function returns the if particle is outgoing ot not when outgoing option is on, 
-            otherwise filter does not do anything."""
-        if self.outgoing:
-            return particle.status == 1
-        else:
-            return True
-
-    def _filtrate_by_id(self, particle):
-        """
-        When particle_ids are given filtering is evaluated
-        """
-        if self.particle_ids is not None:
-            return particle.id in self.particle_ids
-        else:
-            return True
-
-    def _add_particle_data(self, particle):
-        """
-        Add particle data to the dict_var output
-        """
-        for name in self.data.keys():
-            self.data[name] = np.append(self.data[name], getattr(particle, name))
-
-    def _read_single_file(self, path=""):
-        """
-        Return dataframe associated with a single file.
-        """
-
-        self._check_right_path_is_open()
-
-        for obj in self.file:
-            for particle in obj.particles:
-                if self._filtrate_outgoing(particle):
-                    # filtrating by type
-                    if self._filtrate_by_id(particle):
-                        # saving vars of interest
-                        self._add_particle_data(particle)
-
-    def get(self):
-        return self.data
-
-    def get_momenta(self):
-        """
-        return: momentum and energy arrays
-            px, py, pz, energy
-        """
-        return self.data["e"], self.data["px"], self.data["py"], self.data["pz"]
-
-class FilesManipulator:
     def __init__(self, path, verbose=0):
         self.path = path
         self.verbose = verbose
-        # Create structure to save the data in the .lhe files
-        # Here we have pictorical description of the data structure
-        #   First, a list of ints is [int, int, ...] == [(int)]
-        #   So a list of a list of floats is: [[(float)], [(float)], ...] == [( [(float)] )]
-        #   {id: [(int)], typ: [(str)], mk: [(float)], eps2: [(float)], px: [[(float)], [(float)], ...], py: [( [(float)] )], pz: [( [(float)] )] }
-        # Note that despite momentum and energy being list, they will contain a list of list
-        #   to be more specific, a list of arrays, where each array correspons to a param point
+
         self.scan = {
             "id": [],
             "typ": [],

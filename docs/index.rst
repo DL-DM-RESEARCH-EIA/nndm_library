@@ -10,7 +10,11 @@ Welcome to nndm library's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   source/api/ReadFileBase
    source/api/ReadLhe
+   source/api/ReadRoot
+   source/api/FilesManipulator
+
 
 Indices and tables
 ==================

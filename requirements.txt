@@ -1,0 +1,7 @@
+numpy >= 1.22.0
+pandas >= 1.4.1
+uproot >= 4.2.0
+tqdm >= 4.56.0
+pylhe >= 0.2.1
+lz4 >= 4.0.0
+xxhash >= 3.0.0

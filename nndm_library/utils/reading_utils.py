@@ -74,32 +74,36 @@ class ReadRoot(ReadFileBase):
     """
     Class to read the labeled data coming in ROOT format
 
-    Parameters: path: string. 
-                    The direction to the root file containing the event information
-                output_base_name: string. 
-                    Name bas of the first node of the tree that has the data. For instance, if the base name 
-                    is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
-                pattern_output: string 
-                    The idea is this parameter define a methodology to choose from the possible first nodes 
-                    that have a given output_base_name. As an example, first would choose treeoout1 in the 
-                    example before.
-                output_base_middle_branch: string 
-                    middle branch that goes after the selected first node chosen by  the output pattern. If this 
-                    variable is "e/out", following the example the tree to consult at the moment would be 
-                    treeout1/e/out/
-                leafs: list 
-                    what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
-                    giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
-                    treeout1/e/out/out.y
-                data: dataframe that contains all the branches specified by the parameters below as name for the rows, and the
-                    data associated with such names goes in the columns.
-                files_dir: dictionary
-                    it saves all the files from which data was readed to construct the data frame and it shows the integer
-                    associeted with it that identifies it in the dataframe constructed.
-                relabel_events: bool 
-                    there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
-                        particle that interact in it. When relabel_events is True, the values of id are associated unequivocally
-                        with each event.  
+    :param path: the direction to the root file(s)
+    :type path: str 
+
+    :param output_base_name: Name bas of the first node of the tree that has the data. For instance, if the base name 
+        is treeout, there options could be treeout1, treeout2, ...., treeoutN. 
+    :type output_base_name: str 
+
+
+
+    pattern_output: string 
+        The idea is this parameter define a methodology to choose from the possible first nodes 
+        that have a given output_base_name. As an example, first would choose treeoout1 in the 
+        example before.
+    output_base_middle_branch: string 
+        middle branch that goes after the selected first node chosen by  the output pattern. If this 
+        variable is "e/out", following the example the tree to consult at the moment would be 
+        treeout1/e/out/
+    leafs: list 
+        what are the leafs to exaplore in the actual branch. If out.a is the ouput name for the a momenta, 
+        giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
+        treeout1/e/out/out.y
+    data: dataframe that contains all the branches specified by the parameters below as name for the rows, and the
+        data associated with such names goes in the columns.
+    files_dir: dictionary
+        it saves all the files from which data was readed to construct the data frame and it shows the integer
+        associeted with it that identifies it in the dataframe constructed.
+    relabel_events: bool 
+        there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
+            particle that interact in it. When relabel_events is True, the values of id are associated unequivocally
+            with each event.  
 
     Methods
     ------------

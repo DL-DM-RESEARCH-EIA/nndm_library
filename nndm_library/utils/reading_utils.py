@@ -1,4 +1,5 @@
 from asyncore import read
+from importlib.resources import path
 from posixpath import split
 from reprlib import recursive_repr
 import os
@@ -94,6 +95,13 @@ class ReadFileBase(metaclass=abc.ABCMeta):
 
         return res_dict
 
+    def _fill_files_dir(self):
+        self.files_dir = {}
+        file_list = self._file_list()
+
+        for i, file_path in enumerate(file_list):
+            self.files_dir[i] = file_path
+
     def _read_func(self, x):
         return x
 
@@ -121,29 +129,32 @@ class ReadFileBase(metaclass=abc.ABCMeta):
                 print("please enter a valid %s file" % (self.ext))
                 exit(0)
 
-    def _read_single_file(self, path=''):
+    def _read_single_file(self):
         self.data = pd.read_csv(self.file, sep='\s+')
 
     def _file_list(self):
         # Recursive reading means that will find all the .root files inside in 
         #  any of the subsequen directories
-        if (self.recursive):
+        if self.recursive:
             file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*' + self.ext))]
         # When non-recursive it will simply try to read the .root files in such a directory
-        else:
+        elif os.path.isdir(self.path):
             file_list = glob.glob(self.path + '*' + self.ext)
+        elif os.path.isfile(self.path):
+            file_list = [self.path]
+        else:
+            print("please enter a valid path to a file or directory; %s was notfound" % self.path)
+            exit(0)
 
-        print(self.path)
         return file_list
 
-    def _append_df_of_file_list(self, file_list):
+    def _append_df_of_file_list(self):
         res_dataframe = pd.DataFrame()
         last_index = 0
-        for i, file_path in enumerate(file_list):
+        for i, file_path in self.files_dir.items():
             self._read_single_file_safe(path=file_path)
             df_to_append = self.data 
             df_to_append["path"] = i
-            self.files_dir[i] = file_path
         
             # Make first row is a unique identifier
             if self.relabel_events:
@@ -163,29 +174,21 @@ class ReadFileBase(metaclass=abc.ABCMeta):
         """
         if os.path.isdir(self.path):
             # files_dir is no mor None
-            self.files_dir = {}
 
-            file_list = self._file_list()
-            if len(file_list) == 0:
+            if len(self.files_dir) == 0:
                 print("Please check the existense of %s files in the specified directory %s or use recursive=True"
                       % (self.ext, self.path) )
                 exit(0)
             else:
-                self._append_df_of_file_list(file_list)
+                self._append_df_of_file_list()
 
     def _read(self):
         """
         General method to read independently from the initialization from the class.
         """
+        self._fill_files_dir()
         self._read_single_file_safe()
         self._read_recursive_files()
-
-    def get_momenta(self):
-        """
-        :return: momentum and energy arrays
-            px, py, pz, energy
-        """
-        return self.data["e"], self.data["px"], self.data["py"], self.data["pz"]
 
 class ReadLhe(ReadFileBase):
     """

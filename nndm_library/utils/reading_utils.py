@@ -142,7 +142,7 @@ class ReadFileBase():
                 print("please enter a valid %s file" % (self.ext))
                 exit(0)
 
-    def _read_single_file(self):
+    def _read_single_file(self, path=''):
         self.data = pd.read_csv(self.file, sep='\s+')
 
     def _file_list(self):

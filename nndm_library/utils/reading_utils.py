@@ -21,18 +21,6 @@ def isfloat(string):
     except ValueError:
         return False
 
-class Constants:
-    # Chosen from standard
-    ELECTRON_ID = 11
-
-    # TO DO: find standar name for particles
-    #   chosen in arbitrary way to the moment
-    ETA_ID = 1
-    PION_ID = 2
-
-    # Definig map dictionary
-    name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID}
-
 def index_mapper(index, last_index):
     """
     When appending data frames, the first index of the new dataframe must be shifted
@@ -46,7 +34,16 @@ def index_mapper(index, last_index):
         index_values[0] = index_values[0] + last_index
         return tuple(index_values)
 
-class ReadFileBase(metaclass=abc.ABCMeta):
+class Constants:
+    # Chosen from standard
+    ELECTRON_ID = 11
+    ETA_ID = 221
+    PION_ID = 111
+
+    # Definig map dictionary
+    name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID}
+
+class ReadFileBase():
     """
     :param path: the direction to the file containing all the events information.
     :type path: string
@@ -102,9 +99,9 @@ class ReadFileBase(metaclass=abc.ABCMeta):
         for i, file_path in enumerate(file_list):
             self.files_dir[i] = file_path
 
-    def _read_func(self, x):
-        return x
-
+    def _read_func(self, path):
+        return path
+    
     def _check_right_path_is_open(self, path=""):
         """
         Check if path is no specified to return self.path. It is specified when working with directories 
@@ -113,9 +110,11 @@ class ReadFileBase(metaclass=abc.ABCMeta):
 
         # opening correct file for each case (directory and file)
         if path:
-            self.file = self._read_func(path)
+            self.file = path
         else:
-            self.file = self._read_func(self.path)
+            self.file = self.path
+
+        self.read_object = self._read_func(self.file)
 
     def _read_single_file_safe(self, path=''): 
         self._check_right_path_is_open(path)
@@ -143,7 +142,7 @@ class ReadFileBase(metaclass=abc.ABCMeta):
         elif os.path.isfile(self.path):
             file_list = [self.path]
         else:
-            print("please enter a valid path to a file or directory; %s was notfound" % self.path)
+            print("please enter a valid path to a file or directory; %s was not found" % self.path)
             exit(0)
 
         return file_list
@@ -225,19 +224,17 @@ class ReadLhe(ReadFileBase):
     """
     def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, 
         recursive=False, relabel_events=True, verbose=1):
-
-
-        ReadFileBase.__init__(self, path) 
-        self.var_of_interest = var_of_interest
-
+        
+        self.path = path 
+        self.ext = ".lhe"
         self.verbose = verbose
         self.outgoing = outgoing
         self.particle_ids = particle_ids
-
-        self.ext = '.lhe'
+        self.var_of_interest = var_of_interest
 
         self.data = self._init_data()
-        self._read()
+
+        ReadFileBase.__init__(self, path, ext=self.ext) 
         self.data = pd.DataFrame.from_dict(self.data)
 
     def _init_data(self, path=''):
@@ -254,26 +251,15 @@ class ReadLhe(ReadFileBase):
         if self.var_of_interest is None and os.path.isfile(self.path):
             self._check_right_path_is_open(path)
 
-            for obj in self.file:
+            for obj in self.read_object:
                 for particle in obj.particles:
                     if isinstance(particle, pylhe.LHEParticle):
                         for name in particle.fieldnames:
                             data[name] = np.array([])
                         return data
 
-
-
-    def _check_right_path_is_open(self, path=""):
-        """
-        Check if path is no specified to return self.path. It is specified when working with directories 
-            to go over each file, thenit would retuen path.
-        """
-
-        # opening correct file for each case (directory and file)
-        if path:
-            self.file = pylhe.readLHE(path)
-        else:
-            self.file = pylhe.readLHE(self.path)
+    def _read_func(self, path):
+        return pylhe.readLHE(path)
 
     def _filtrate_outgoing(self, particle):
         """ 
@@ -305,18 +291,13 @@ class ReadLhe(ReadFileBase):
         """
         Return dataframe associated with a single file.
         """
-        for obj in self.file:
+        for obj in self.read_object:
             for particle in obj.particles:
                 if self._filtrate_outgoing(particle):
                     # filtrating by type
                     if self._filtrate_by_id(particle):
                         # saving vars of interest
                         self._add_particle_data(particle)
-
-    def _read_recursive_fliles(self):
-        pass
-
-
 
 # This class read the output data relating to the electron scaterings
 class ReadRoot(ReadFileBase):
@@ -359,8 +340,6 @@ class ReadRoot(ReadFileBase):
         leafs = ["out.t", "out.x", "out.y", "out.z", "out._mass"], recursive=False,
         files_dir=None, relabel_events=True 
     ):
-        ReadFileBase.__init__(self, path) 
-
         self.output_base_tree = output_base_tree
         self.pattern_output = pattern_output
         self.output_base_middle_branch = output_base_middle_branch
@@ -369,66 +348,24 @@ class ReadRoot(ReadFileBase):
         self.recursive = recursive
         self.relabel_events = relabel_events
 
-        self.extension = ".root"
+        self.ext = ".root"
 
         self.files_dir = files_dir
 
-        self._read()
+        ReadFileBase.__init__(self, path, ext=self.ext)
 
-    def _read(self):
-        """
-        General method to read independently from the initialization from the class.
-        """
-        self._read_single_file_safe()        
-        self._read_recursive_fliles()
-
-    def _read_recursive_fliles(self):
-        """
-        Read when self.path is a directory, either all datain the given path or all
-            the files found recursively from the given path.
-        """
-        if os.path.isdir(self.path):
-            # files_dir is no mor None
-            self.files_dir = {}
-
-            file_list = self._file_list()
-            if not len(file_list):
-                print("Please check the existense of .root files in the specified directory %s or use recursive=True"
-                      % self.path)
-                exit(0)
-            else:
-                self._append_df_of_file_list(file_list)
-
-    def _read_single_file_safe(self):
-        #########
-        # Read when self.path is a file
-        if os.path.isfile(self.path):
-            _, ext = os.path.splitext(self.path)
-            if (ext == ".root"):
-                if (self.pattern_output == "first"):
-                    # create list of number termination
-                     self._read_single_file()
-            else:
-                # TO DO: create standard errors
-                print("please enter a valid .root file")
-                exit(0)
+    def _read_func(self, path):
+        return uproot.open(path)
 
     def _read_single_file(self, path=""):
         """
         Return dataframe associated with a single file.
         """
 
-        # Check is path is no specified. It is specified when working with directories to go over
-        #   each file.
-
-        # opening correct file for each case (directory and file)
-        if path:
-            self.tree = uproot.open(path)
-        else:
-            self.tree = uproot.open(self.path)
+        self._check_right_path_is_open(path)
 
         # choose keys with the correct base name
-        keys = self.tree.keys()
+        keys = self.read_object.keys()
         filter_by_base_name = [key for key in keys if self.output_base_tree in key]
         
         if (self.pattern_output == "first"):
@@ -438,27 +375,10 @@ class ReadRoot(ReadFileBase):
         
             # get the data we are interested
             final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
-            data_frame = self.tree[final_branch].arrays(self.leafs, library="pd")
+            data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd")
 
-        return data_frame
+        self.data = data_frame
 
-    def _append_df_of_file_list(self, file_list):
-        self.data = pd.DataFrame()
-        last_index = 0
-        for i, file_path in enumerate(file_list):
-            df_to_append = self._read_single_file(path=file_path)
-            df_to_append["path"] = i
-            self.files_dir[i] = file_path
-
-            # Make first row is a unique identifier
-            if (self.relabel_events):
-                df_to_append = df_to_append.rename(functools.partial(index_mapper, last_index), 
-                                                axis=0, level=df_to_append.index.names[0])
-                last_index = df_to_append.index.tolist()[-1]
-                if type(last_index) != int:
-                    last_index = last_index[0]
-
-        self.data = pd.concat([self.data, df_to_append], axis = 0)
 
 class FilesManipulator:
     """
@@ -472,34 +392,35 @@ class FilesManipulator:
     :type path: string
     """
 
-    def __init__(self, path, verbose=0):
+    def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, verbose=0):
         self.path = path
         self.verbose = verbose
+        self.particle_ids = particle_ids
+        self.var_of_interest = var_of_interest
+        self.outgoing = outgoing
 
-        self.scan = {
-            "id": [],
-            "typ": [],
-            "mk": [],
-            "eps2": [],
-            "name": [],
-            "px": [],
-            "py": [],
-            "pz": [],
-            "e": [],
-        }
+        self.scan = {}
 
     def fill_up_scan(self):
         file_list = glob.glob(self.path)
 
         # initialize scan dictionary as described above going over all the names
-        for id, name in enumerate(file_list):
-            read_file = ReadLhe(name, verbose=self.verbose)
-            typ, mk, eps2 = read_file.extract_params_from_path()
-            self.scan["id"].append(id), self.scan["typ"].append(typ), self.scan["mk"].append(mk)
-            self.scan["eps2"].append(eps2), self.scan["name"].append(os.path.basename(name))
-            e, px, py, pz = read_file.get_momenta()
-            for var in ["px", "py", "pz", "e"]:
-                self.scan[var].append(eval(var))
+        for i, name in enumerate(file_list):
+            read_file = ReadLhe(name, var_of_interest=self.var_of_interest, particle_ids=self.particle_ids, 
+                                outgoing=self.outgoing, verbose=self.verbose)
+            params = read_file.extract_params_from_path()
+            if i == 0:            
+                for param, value in params.items():
+                    self.scan[param] = []
+                self.scan["file_name"] = [] 
+                for variable in list(read_file.data.columns):
+                    self.scan[variable] = []
+
+            for param, value in params.items():
+                self.scan[param].append(value)
+            self.scan["file_name"].append(os.path.basename(name))
+            for variable in list(read_file.data.columns):
+                self.scan[variable].append(read_file.data[variable].to_numpy())
 
     def save_scan(self, save_name="complete_task.pickle"):
         with open(save_name, "wb") as f:

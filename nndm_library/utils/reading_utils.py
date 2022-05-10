@@ -45,6 +45,16 @@ class Constants:
 
 class ReadFileBase():
     """
+    Class to read the labeled data coming in a format like the following:\n
+    data1 data2 data3\n
+    v11   v12   v13\n
+    .     .     .  \n
+    .     .     .  \n
+    .     .     .  \n
+    vn1   vn2   vn3\n
+
+    where data1, data2, ... respresent names and vij, a value in the given i row and column dataj. 
+
     :param path: the direction to the file containing all the events information.
     :type path: string
 
@@ -65,7 +75,7 @@ class ReadFileBase():
     :type data: dict
     """
     
-    def __init__(self, path, recursive=False, ext='.txt', relabel_events=False):
+    def __init__(self, path, recursive=False, ext='.txt', relabel_events=True):
         self.path = path
         self.recursive = recursive
         self.ext = ext
@@ -205,8 +215,8 @@ class ReadFileBase():
 
 class ReadLhe(ReadFileBase):
     """
-    Class to read the data coming in lhe format.
-        
+    Class to read the data coming in lhe format. By default it will read all the particles. Filters used apply to the such default data.
+
     :param path: the direction to the file containing all the events information.
     :type path: string
 
@@ -333,7 +343,8 @@ class ReadLhe(ReadFileBase):
 # This class read the output data relating to the electron scaterings
 class ReadRoot(ReadFileBase):
     """
-    Class to read the labeled data coming in ROOT format
+    Class to read the labeled data coming in ROOT format. By default it assumes values for output_base_tree, pattern_output,
+    output_base_middle_branch, and leafs. This is for a fast reading.
 
     :param path: the direction to the root file(s)
     :type path: str 

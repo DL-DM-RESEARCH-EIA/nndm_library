@@ -136,13 +136,13 @@ class ReadFileBase():
         if os.path.isfile(self.file):
             _, ext = os.path.splitext(self.file)
             if ext == self.ext:
-                self._read_single_file(self.file)
+                self._read_single_file()
             else:
                 # TO DO: create standard errors
                 print("please enter a valid %s file" % (self.ext))
                 exit(0)
 
-    def _read_single_file(self, path=''):
+    def _read_single_file(self):
         self.data = pd.read_csv(self.file, sep='\s+')
 
     def _file_list(self):
@@ -314,7 +314,7 @@ class ReadLhe(ReadFileBase):
         for name in self.data.keys():
             self.data[name] = np.append(self.data[name], getattr(particle, name))
 
-    def _read_single_file(self, path=''):
+    def _read_single_file(self):
         """
         Return dataframe associated with a single file.
         """
@@ -389,12 +389,10 @@ class ReadRoot(ReadFileBase):
         if os.path.isfile(path):
             return uproot.open(path)
 
-    def _read_single_file(self, path=""):
+    def _read_single_file(self):
         """
         Return dataframe associated with a single file.
         """
-
-        self._check_right_path_is_open(path)
 
         if os.path.isfile(self.file):
             # choose keys with the correct base name

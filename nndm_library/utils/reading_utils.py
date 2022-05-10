@@ -95,14 +95,14 @@ class ReadFileBase():
                 # going over splitted values and creating dictionary
                 for i in range(len(splitted)):
                     if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
-                        res_dict[splitted[i - 1]].append(splitted[i])
+                        res_dict[splitted[i - 1]].append(float(splitted[i]))
             else:
                 res_dict['particle_type'] = Constants.name_to_id[splitted[0]]
 
                 # going over splitted values and creating dictionary
                 for i in range(len(splitted)):
                     if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
-                        res_dict[splitted[i - 1]] = splitted[i]
+                        res_dict[splitted[i - 1]] = float(splitted[i])
 
         return res_dict
 

@@ -12,7 +12,6 @@ import numpy as np
 # import tqdm #TO DO
 import functools
 import pylhe
-import abc
 
 def isfloat(string):
     try:
@@ -28,10 +27,10 @@ def index_mapper(index, last_index):
     """
 
     if type(index) == int:
-        return index + last_index
+        return index + last_index + 1
     else:
         index_values = list(index)
-        index_values[0] = index_values[0] + last_index
+        index_values[0] = index_values[0] + last_index + 1
         return tuple(index_values)
 
 class Constants:
@@ -39,9 +38,10 @@ class Constants:
     ELECTRON_ID = 11
     ETA_ID = 221
     PION_ID = 111
+    DM_ID = 50
 
     # Definig map dictionary
-    name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID}
+    name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID, 'dm' : DM_ID}
 
 class ReadFileBase():
     """
@@ -80,15 +80,29 @@ class ReadFileBase():
 
         :return: dictionary with all extracted data
         """
-        splitted = os.path.splitext(os.path.basename(self.path))[0].split("_")
         res_dict = {}
 
-        res_dict['particle_type'] = Constants.name_to_id[splitted[0]]
+        for name in self.files_dir.values():
+            splitted = os.path.splitext(os.path.basename(name))[0].split("_")
 
-        # going over splitted values and creating dictionary
-        for i in range(len(splitted)):
-            if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
-                res_dict[splitted[i - 1]] = splitted[i]
+            if res_dict.get('particle_type'):
+                if type(res_dict['particle_type']) == int:
+                    for key in res_dict.keys():
+                        res_dict[key] = [res_dict[key]]
+
+                res_dict['particle_type'].append(Constants.name_to_id[splitted[0]])
+
+                # going over splitted values and creating dictionary
+                for i in range(len(splitted)):
+                    if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
+                        res_dict[splitted[i - 1]].append(splitted[i])
+            else:
+                res_dict['particle_type'] = Constants.name_to_id[splitted[0]]
+
+                # going over splitted values and creating dictionary
+                for i in range(len(splitted)):
+                    if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
+                        res_dict[splitted[i - 1]] = splitted[i]
 
         return res_dict
 
@@ -122,7 +136,7 @@ class ReadFileBase():
         if os.path.isfile(self.file):
             _, ext = os.path.splitext(self.file)
             if ext == self.ext:
-                self._read_single_file()
+                self._read_single_file(self.file)
             else:
                 # TO DO: create standard errors
                 print("please enter a valid %s file" % (self.ext))
@@ -154,7 +168,7 @@ class ReadFileBase():
             self._read_single_file_safe(path=file_path)
             df_to_append = self.data 
             df_to_append["path"] = i
-        
+
             # Make first row is a unique identifier
             if self.relabel_events:
                 df_to_append = df_to_append.rename(functools.partial(index_mapper, last_index), 
@@ -232,9 +246,12 @@ class ReadLhe(ReadFileBase):
         self.particle_ids = particle_ids
         self.var_of_interest = var_of_interest
 
+        self.recursive = recursive
+        self.relabel_events = relabel_events
+
         self.data = self._init_data()
 
-        ReadFileBase.__init__(self, path, ext=self.ext) 
+        ReadFileBase.__init__(self, path, ext=self.ext, recursive=self.recursive, relabel_events=self.relabel_events) 
         self.data = pd.DataFrame.from_dict(self.data)
 
     def _init_data(self, path=''):
@@ -248,7 +265,17 @@ class ReadLhe(ReadFileBase):
 
         # Initialize when var_of_interest is None and there is a valid file
         #  here is assumed that the same info is given for each event
-        if self.var_of_interest is None and os.path.isfile(self.path):
+        elif self.var_of_interest is None and os.path.isfile(self.path):
+            self._check_right_path_is_open(path)
+
+            for obj in self.read_object:
+                for particle in obj.particles:
+                    if isinstance(particle, pylhe.LHEParticle):
+                        for name in particle.fieldnames:
+                            data[name] = np.array([])
+                        return data
+
+        elif path and os.path.isfile(path):
             self._check_right_path_is_open(path)
 
             for obj in self.read_object:
@@ -291,6 +318,8 @@ class ReadLhe(ReadFileBase):
         """
         Return dataframe associated with a single file.
         """
+        self.data = self._init_data(self.file)
+
         for obj in self.read_object:
             for particle in obj.particles:
                 if self._filtrate_outgoing(particle):
@@ -298,6 +327,8 @@ class ReadLhe(ReadFileBase):
                     if self._filtrate_by_id(particle):
                         # saving vars of interest
                         self._add_particle_data(particle)
+    
+        self.data = pd.DataFrame.from_dict(self.data)
 
 # This class read the output data relating to the electron scaterings
 class ReadRoot(ReadFileBase):
@@ -352,10 +383,11 @@ class ReadRoot(ReadFileBase):
 
         self.files_dir = files_dir
 
-        ReadFileBase.__init__(self, path, ext=self.ext)
+        ReadFileBase.__init__(self, path, ext=self.ext, relabel_events=self.relabel_events, recursive=self.recursive)
 
     def _read_func(self, path):
-        return uproot.open(path)
+        if os.path.isfile(path):
+            return uproot.open(path)
 
     def _read_single_file(self, path=""):
         """
@@ -364,20 +396,21 @@ class ReadRoot(ReadFileBase):
 
         self._check_right_path_is_open(path)
 
-        # choose keys with the correct base name
-        keys = self.read_object.keys()
-        filter_by_base_name = [key for key in keys if self.output_base_tree in key]
-        
-        if (self.pattern_output == "first"):
-            # chose the first one
-            numeric_values = [int(filter_by_base_name[i].split(";", 1)[1]) for i in range(len(filter_by_base_name))]
-            index_min = numeric_values.index(min(numeric_values))
-        
-            # get the data we are interested
-            final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
-            data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd")
+        if os.path.isfile(self.file):
+            # choose keys with the correct base name
+            keys = self.read_object.keys()
+            filter_by_base_name = [key for key in keys if self.output_base_tree in key]
+            
+            if (self.pattern_output == "first"):
+                # chose the first one
+                numeric_values = [int(filter_by_base_name[i].split(";", 1)[1]) for i in range(len(filter_by_base_name))]
+                index_min = numeric_values.index(min(numeric_values))
+            
+                # get the data we are interested
+                final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
+                data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd")
 
-        self.data = data_frame
+            self.data = data_frame
 
 
 class FilesManipulator:

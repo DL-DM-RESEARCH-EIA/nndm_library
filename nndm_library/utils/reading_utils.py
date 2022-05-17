@@ -140,7 +140,7 @@ class ReadFileBase():
 
         self.read_object = self._read_func(self.file)
 
-    def _read_single_file_safe(self, path=''): 
+    def _read_single_file_safe(self, path=''):
         self._check_right_path_is_open(path)
 
         if os.path.isfile(self.file):

@@ -12,6 +12,9 @@ import numpy as np
 # import tqdm #TO DO
 import functools
 import pylhe
+import json
+
+from nndm_library.utils.utils import ColumnFunctionsMixin
 
 def isfloat(string):
     try:
@@ -43,8 +46,10 @@ class Constants:
     # Definig map dictionary
     name_to_id = {'electron' : ELECTRON_ID, 'eta' : ETA_ID, 'pion' : PION_ID, 'dm' : DM_ID}
 
-class ReadFileBase():
+class ReadFileBase(ColumnFunctionsMixin):
     """
+    TODO: end in case no files is foound in recursive
+
     Class to read the labeled data coming in a format like the following:\n
     data1 data2 data3\n
     v11   v12   v13\n
@@ -115,6 +120,22 @@ class ReadFileBase():
                         res_dict[splitted[i - 1]] = float(splitted[i])
 
         return res_dict
+
+    def assign_process_weights(self, file_weights):
+        weights_dir = json.load(open(file_weights))
+
+        self.data['weight'] = 0
+
+        # Go over files for which we know the weight and modify
+        #   and assign correct values for weitgh in dataframe if
+        #   they share such procedence
+        total = np.array(list(weights_dir.values())).sum()
+        for file_name, weigth in weights_dir.items():
+            for index_path, file_path in self.files_dir.items():
+                if file_name in file_path:
+                    # normalize by proportion
+                    self.data.loc[self.data.path == index_path, 'weight'] = weigth / total
+
 
     def _fill_files_dir(self):
         self.files_dir = {}
@@ -212,6 +233,7 @@ class ReadFileBase():
         self._fill_files_dir()
         self._read_single_file_safe()
         self._read_recursive_files()
+
 
 class ReadLhe(ReadFileBase):
     """
@@ -410,7 +432,7 @@ class ReadRoot(ReadFileBase):
             keys = self.read_object.keys()
             filter_by_base_name = [key for key in keys if self.output_base_tree in key]
             
-            if (self.pattern_output == "first"):
+            if self.pattern_output == "first":
                 # chose the first one
                 numeric_values = [int(filter_by_base_name[i].split(";", 1)[1]) for i in range(len(filter_by_base_name))]
                 index_min = numeric_values.index(min(numeric_values))

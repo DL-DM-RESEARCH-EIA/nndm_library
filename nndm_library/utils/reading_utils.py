@@ -387,13 +387,15 @@ class ReadRoot(ReadFileBase):
         giving a list [out.x, out.y] will give the data to consult. That is, treeout1/e/out/out.x and
         treeout1/e/out/out.y
     
-    :type files_dir: list of strings
-    :param files_dir: it saves all the files from which data was readed to construct the data frame and it shows 
-        the integer associeted with it that identifies it in the dataframe constructed.
     :type relabel_events: bool 
     :param relabel_events: there is an id for each possible event. For instance a collision have an id for it and two sub ids for the
         particle that interact in it. When relabel_events is True, the values of id are associated unequivocally with each event.
 
+    :var data: dataframe with the read events
+    :type data: dataframe
+
+    :var files_dir: directory with the name of the files read and its id
+    :type data: dict
     """
 
     def __init__(
@@ -452,6 +454,9 @@ class FilesManipulator:
     
     :param path: the direction to the file containing all the events information.
     :type path: string
+    
+    :var scan: show progress reading all the .lhe files
+    :type scan: dict
     """
 
     def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, verbose=0):

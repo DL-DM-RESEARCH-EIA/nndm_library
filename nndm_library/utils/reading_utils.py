@@ -48,8 +48,6 @@ class Constants:
 
 class ReadFileBase(ColumnFunctionsMixin):
     """
-    TODO: end in case no files is foound in recursive
-
     Class to read the labeled data coming in a format like the following:\n
     data1 data2 data3\n
     v11   v12   v13\n
@@ -220,7 +218,7 @@ class ReadFileBase(ColumnFunctionsMixin):
             # files_dir is no mor None
 
             if len(self.files_dir) == 0:
-                print("Please check the existense of %s files in the specified directory %s or use recursive=True"
+                print("Exception: No files were found within the provided path. Please check the existence of %s files in the specified directory %s or use recursive=True"
                       % (self.ext, self.path) )
                 exit(0)
             else:

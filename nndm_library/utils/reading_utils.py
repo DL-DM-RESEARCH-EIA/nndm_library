@@ -446,6 +446,8 @@ class ReadRoot(ReadFileBase):
 
 class FilesManipulator:
     """    
+    General methods intended for the manipulation of the files and its names in a given directory(ies).
+
     :param path: the direction to the file containing all the events information.
     :type path: string
     

@@ -445,13 +445,7 @@ class ReadRoot(ReadFileBase):
 
 
 class FilesManipulator:
-    """
-    Create structure to save the data in the .lhe files in the path given
-    Here we have pictorical description of the data structure:  
-        First, a list of ints is [int, int, ...] == [(int)].  So a list of a list of floats is: [[(float)], [(float)], ...] == [( [(float)] )]
-        {id: [(int)], typ: [(str)], mk: [(float)], eps2: [(float)], px: [[(float)], [(float)], ...], py: [( [(float)] )], pz: [( [(float)] )] }
-        Note that momentum and energy are a list of arrays, where each array correspons to a param point
-    
+    """    
     :param path: the direction to the file containing all the events information.
     :type path: string
     
@@ -470,6 +464,10 @@ class FilesManipulator:
       sets of vaues of the variable of interest (var_of_interest). Note that the benchmark points are read
       from the name. Format is as follows: {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
       An example would be eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe.
+      Here we have pictorical description of the scan:  
+        First, a list of ints is [int, int, ...] == [(int)].  So a list of a list of floats is: [[(float)], [(float)], ...] == [( [(float)] )]
+        {id: [(int)], typ: [(str)], mk: [(float)], eps2: [(float)], px: [[(float)], [(float)], ...], py: [( [(float)] )], pz: [( [(float)] )] }
+        Note that momentum and energy are a list of arrays, where each array correspons to a param point
     :type scan: dict
     """
 

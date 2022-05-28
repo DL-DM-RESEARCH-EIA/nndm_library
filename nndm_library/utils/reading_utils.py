@@ -455,6 +455,17 @@ class FilesManipulator:
     :param path: the direction to the file containing all the events information.
     :type path: string
     
+    :param partcile_ids: ids of the particles to extract from the file according to the pdg, 
+    By default: None, which means exctract all the particles.
+    :type partcile_ids: list of integers
+
+    :param var_of_interest: names of the variables to extract from the lhe. eg. ["e","angle"], ["e","px","py"] 
+        .... By default: None, which means exctract all the variables.
+    :type var_of_interest: list of strings
+
+    :param outgoing: filtrate to obtain all the outgoing particles
+    :type outgoing: bool
+
     :var scan: show progress reading all the .lhe files
     :type scan: dict
     """

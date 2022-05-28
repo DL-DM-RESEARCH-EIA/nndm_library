@@ -1,0 +1,8 @@
+{
+"v_e_scattering/onnuelepton10125" : 6.0,
+"v_e_scattering/onantinuelepton10125" : 2.0, 
+"v_e_scattering/onantinumulepton10125" : 45.0, 
+"v_e_scattering/onnumulepton10125": 63.5,
+"CCQE/antinuonnue" : 7.0, 
+"CCQE/nuonnue" :1.5
+}

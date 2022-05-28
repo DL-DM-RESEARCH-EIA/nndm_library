@@ -466,7 +466,10 @@ class FilesManipulator:
     :param outgoing: filtrate to obtain all the outgoing particles
     :type outgoing: bool
 
-    :var scan: show progress reading all the .lhe files
+    :var scan: it is a dictionary with the values of the benchmark points, each with its respective result
+      sets of vaues of the variable of interest (var_of_interest). Note that the benchmark points are read
+      from the name. Format is as follows: {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
+      An example would be eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe.
     :type scan: dict
     """
 

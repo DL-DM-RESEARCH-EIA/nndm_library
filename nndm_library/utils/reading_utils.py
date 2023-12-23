@@ -316,7 +316,7 @@ class ReadLhe(ReadFileBase):
                         return data
 
     def _read_func(self, path):
-        return pylhe.readLHE(path)
+        return pylhe.read_lhe_with_attributes(path)
 
     def _filtrate_outgoing(self, particle):
         """ 
@@ -487,7 +487,7 @@ class FilesManipulator:
 
         # initialize scan dictionary as described above going over all the names
         for i, name in enumerate(file_list):
-            read_file = ReadLhe(name, var_of_interest=self.var_of_interest, particle_ids=self.particle_ids, 
+            read_file = read_lhe_with_attributes(name, var_of_interest=self.var_of_interest, particle_ids=self.particle_ids, 
                                 outgoing=self.outgoing, verbose=self.verbose)
             params = read_file.extract_params_from_path()
             if i == 0:            

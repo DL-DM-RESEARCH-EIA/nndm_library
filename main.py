@@ -6,3 +6,4 @@ from nndm_library import ReadRoot
 from nndm_library import Constants
 
 
+ReadRoot("tests/data_tests/signal/", recursive=True)

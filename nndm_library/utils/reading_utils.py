@@ -13,6 +13,7 @@ import numpy as np
 import functools
 import pylhe
 import json
+from itertools import islice
 
 from nndm_library.utils.utils import ColumnFunctionsMixin
 
@@ -78,18 +79,22 @@ class ReadFileBase(ColumnFunctionsMixin):
     :type data: dict
     """
     
-    def __init__(self, path, recursive=False, ext='.txt', relabel_events=True):
+    def __init__(self, path, recursive=False, ext='.txt', relabel_events=True, read_data=True, n_samples=None):
         self.path = path
         self.recursive = recursive
         self.ext = ext
         self.relabel_events = relabel_events
-        
-        self._read()
+        self.n_samples = n_samples
+
+        self._fill_files_dir()
+        if read_data: 
+            self._read()
 
     def extract_params_from_path(self):
         """
-        Format is as follows: {particle_name}_{param1}_{value1}_{param2}_{value2}_{param3}_{value3}*.lhe
-        An example would be eta_decay_events_mk_0.38_eps2_5.404557191441203e-07.lhe.
+        Handles file names with variable structures, with or without particle names.
+        Format: [optional {particle_name}_]{param1}_{value1}_..._{paramN}_{valueN}.lhe
+        Examples: eta_decay_events_mk_0.38_eps2_5.4e-07.lhe, mk_0.38_eps2_5.4e-07.lhe
 
         :return: dictionary with all extracted data
         """
@@ -98,26 +103,43 @@ class ReadFileBase(ColumnFunctionsMixin):
         for name in self.files_dir.values():
             splitted = os.path.splitext(os.path.basename(name))[0].split("_")
 
-            if res_dict.get('particle_type'):
-                if type(res_dict['particle_type']) == int:
-                    for key in res_dict.keys():
-                        res_dict[key] = [res_dict[key]]
-
-                res_dict['particle_type'].append(Constants.name_to_id[splitted[0]])
-
-                # going over splitted values and creating dictionary
-                for i in range(len(splitted)):
-                    if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
-                        res_dict[splitted[i - 1]].append(float(splitted[i]))
+            # Check if first part of the name is a known particle name
+            if splitted[0] in Constants.name_to_id:
+                particle_type = Constants.name_to_id[splitted[0]]
+                param_start_index = 1
             else:
-                res_dict['particle_type'] = Constants.name_to_id[splitted[0]]
+                particle_type = 999  # Default value for files without particle name
+                param_start_index = 0
 
-                # going over splitted values and creating dictionary
-                for i in range(len(splitted)):
-                    if isfloat(splitted[i]) and (splitted[i - 1] != splitted[0]):
-                        res_dict[splitted[i - 1]] = float(splitted[i])
+            # Initialize 'particle_type' in res_dict if it doesn't exist
+            if not res_dict.get('particle_type'):
+                res_dict['particle_type'] = []
+            res_dict['particle_type'].append(particle_type)
+            
+
+            # Process parameters and values
+            for i in range(param_start_index, len(splitted)):
+                param = splitted[i]
+                try:
+                    value = splitted[i + 1]
+                except IndexError:
+                    break  # Break the loop if there are no more values
+
+                if isfloat(value):
+                    value = float(value)
+                elif value in ["True", "False"]:
+                    value = value == "True"
+                else:
+                    continue
+
+                # Append or create key-value pair in res_dict
+                if param in res_dict:
+                    res_dict[param].append(value)
+                else:
+                    res_dict[param] = [value]
 
         return res_dict
+
 
     def assign_process_weights(self, file_weights):
         weights_dir = json.load(open(file_weights))
@@ -136,11 +158,14 @@ class ReadFileBase(ColumnFunctionsMixin):
 
 
     def _fill_files_dir(self):
-        self.files_dir = {}
-        file_list = self._file_list()
+        if isinstance(self.path, list):
+            self.files_dir = {i: path for i, path in enumerate(self.path)} 
+        else:
+            self.files_dir = {}
+            file_list = self._file_list()
 
-        for i, file_path in enumerate(file_list):
-            self.files_dir[i] = file_path
+            for i, file_path in enumerate(file_list):
+                self.files_dir[i] = file_path
 
     def _read_func(self, path):
         return path
@@ -162,17 +187,22 @@ class ReadFileBase(ColumnFunctionsMixin):
     def _read_single_file_safe(self, path=''):
         self._check_right_path_is_open(path)
 
-        if os.path.isfile(self.file):
-            _, ext = os.path.splitext(self.file)
-            if ext == self.ext:
-                self._read_single_file()
-            else:
-                # TO DO: create standard errors
-                print("please enter a valid %s file" % (self.ext))
-                exit(0)
+        # When self.file is a well given string proceed
+        if isinstance(self.file, str):
+            if os.path.isfile(self.file):
+                _, ext = os.path.splitext(self.file)
+                if ext == self.ext:
+                    self._read_single_file()
+                else:
+                    # TO DO: create standard errors
+                    print("please enter a valid %s file" % (self.ext))
+                    exit(0)
 
     def _read_single_file(self):
-        self.data = pd.read_csv(self.file, sep='\s+')
+        if self.n_samples is None:
+            self.data = pd.read_csv(self.file, sep='\s+')
+        elif isinstance(self.n_samples, int):
+            self.data = pd.read_csv(self.file, sep='\s+', nrows=self.n_samples)
 
     def _file_list(self):
         # Recursive reading means that will find all the .root files inside in 
@@ -181,6 +211,7 @@ class ReadFileBase(ColumnFunctionsMixin):
             file_list = [file for sub_dir in os.walk(self.path) for file in glob.glob(os.path.join(sub_dir[0], '*' + self.ext))]
         # When non-recursive it will simply try to read the .root files in such a directory
         elif os.path.isdir(self.path):
+            self.path = (self.path + "/") if self.path[-1] != '/' else self.path
             file_list = glob.glob(self.path + '*' + self.ext)
         elif os.path.isfile(self.path):
             file_list = [self.path]
@@ -214,21 +245,27 @@ class ReadFileBase(ColumnFunctionsMixin):
         Read when self.path is a directory, either all datain the given path or all
             the files found recursively from the given path.
         """
-        if os.path.isdir(self.path):
-            # files_dir is no mor None
 
-            if len(self.files_dir) == 0:
-                print("Exception: No files were found within the provided path. Please check the existence of %s files in the specified directory %s or use recursive=True"
-                      % (self.ext, self.path) )
-                exit(0)
-            else:
-                self._append_df_of_file_list()
+        # When self.file is a well given string proceed reading files in directory
+        if isinstance(self.file, str):
+            if os.path.isdir(self.path):
+                # files_dir is no more None
+
+                if len(self.files_dir) == 0:
+                    print("Exception: No files were found within the provided path. Please check the existence of %s files in the specified directory %s or use recursive=True"
+                        % (self.ext, self.path) )
+                    exit(0)
+                else:
+                    self._append_df_of_file_list()
+        # When a list is given check that it is of files and read
+        if isinstance(self.file, list):
+            self._append_df_of_file_list()
+
 
     def _read(self):
         """
         General method to read independently from the initialization from the class.
         """
-        self._fill_files_dir()
         self._read_single_file_safe()
         self._read_recursive_files()
 
@@ -267,7 +304,7 @@ class ReadLhe(ReadFileBase):
     :type data: dict
     """
     def __init__(self, path, particle_ids=None, var_of_interest=None, outgoing=False, 
-        recursive=False, relabel_events=True, verbose=1):
+        recursive=False, relabel_events=True, verbose=1., read_data=True, n_samples=None):
         
         self.path = path 
         self.ext = ".lhe"
@@ -275,13 +312,15 @@ class ReadLhe(ReadFileBase):
         self.outgoing = outgoing
         self.particle_ids = particle_ids
         self.var_of_interest = var_of_interest
+        self.n_samples = n_samples
 
         self.recursive = recursive
         self.relabel_events = relabel_events
+        self.read_data = read_data
 
         self.data = self._init_data()
 
-        ReadFileBase.__init__(self, path, ext=self.ext, recursive=self.recursive, relabel_events=self.relabel_events) 
+        ReadFileBase.__init__(self, path, ext=self.ext, recursive=self.recursive, relabel_events=self.relabel_events, read_data=self.read_data) 
         self.data = pd.DataFrame.from_dict(self.data)
 
     def _init_data(self, path=''):
@@ -295,15 +334,22 @@ class ReadLhe(ReadFileBase):
 
         # Initialize when var_of_interest is None and there is a valid file
         #  here is assumed that the same info is given for each event
-        elif self.var_of_interest is None and os.path.isfile(self.path):
-            self._check_right_path_is_open(path)
+        elif self.var_of_interest is None and isinstance(self.path, list):
+            self.var_of_interest  = ['e', 'px', 'py', 'pz']
+            for var in [v for v in self.var_of_interest]:
+                data[var] = np.array([])
+            return data
 
-            for obj in self.read_object:
-                for particle in obj.particles:
-                    if isinstance(particle, pylhe.LHEParticle):
-                        for name in particle.fieldnames:
-                            data[name] = np.array([])
-                        return data
+        elif self.var_of_interest is None  and isinstance(self.path, str): 
+            if os.path.isfile(self.path):
+                self._check_right_path_is_open(path)
+
+                for obj in self.read_object:
+                    for particle in obj.particles:
+                        if isinstance(particle, pylhe.LHEParticle):
+                            for name in particle.fieldnames:
+                                data[name] = np.array([])
+                            return data
 
         elif path and os.path.isfile(path):
             self._check_right_path_is_open(path)
@@ -315,8 +361,19 @@ class ReadLhe(ReadFileBase):
                             data[name] = np.array([])
                         return data
 
+    def _read_first_n_lhe_events(self, path):
+        with open(path) as lhefile:
+            return islice(pylhe.read_lhe_with_attributes(path), self.n_samples)
+
     def _read_func(self, path):
-        return pylhe.read_lhe_with_attributes(path)
+        # Define the generator within this method
+
+        if self.n_samples is None:
+            return pylhe.read_lhe_with_attributes(path)
+        elif isinstance(self.n_samples, int):
+            return self._read_first_n_lhe_events(path)
+        else:
+            raise ValueError("n_samples must be None or an integer")
 
     def _filtrate_outgoing(self, particle):
         """ 
@@ -402,21 +459,24 @@ class ReadRoot(ReadFileBase):
         self, path: str, output_base_tree="treeout", pattern_output="first",
         output_base_middle_branch = "/e/out",
         leafs = ["out.t", "out.x", "out.y", "out.z", "out._mass"], recursive=False,
-        files_dir=None, relabel_events=True 
+        files_dir=None, relabel_events=True , read_data=True,  n_samples=None
     ):
         self.output_base_tree = output_base_tree
         self.pattern_output = pattern_output
         self.output_base_middle_branch = output_base_middle_branch
         self.leafs = leafs
+        self.n_samples = n_samples
 
         self.recursive = recursive
+        self.read_data = read_data
         self.relabel_events = relabel_events
+
 
         self.ext = ".root"
 
         self.files_dir = files_dir
 
-        ReadFileBase.__init__(self, path, ext=self.ext, relabel_events=self.relabel_events, recursive=self.recursive)
+        ReadFileBase.__init__(self, path, ext=self.ext, relabel_events=self.relabel_events, recursive=self.recursive, read_data=self.read_data)
 
     def _read_func(self, path):
         if os.path.isfile(path):
@@ -439,10 +499,14 @@ class ReadRoot(ReadFileBase):
             
                 # get the data we are interested
                 final_branch = filter_by_base_name[index_min] + self.output_base_middle_branch
-                data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd")
+                if self.n_samples is None:
+                    data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd")
+                elif isinstance(self.n_samples, int):
+                    data_frame = self.read_object[final_branch].arrays(self.leafs, library="pd", entry_stop=self.n_samples)
+                else:
+                    raise ValueError("n_samples must be None or an integer")
 
             self.data = data_frame
-
 
 class FilesManipulator:
     """    
@@ -482,12 +546,16 @@ class FilesManipulator:
 
         self.scan = {}
 
+    def extract_params(self):
+        file_list = glob.glob(self.path)
+
+
     def fill_up_scan(self):
         file_list = glob.glob(self.path)
 
         # initialize scan dictionary as described above going over all the names
         for i, name in enumerate(file_list):
-            read_file = read_lhe_with_attributes(name, var_of_interest=self.var_of_interest, particle_ids=self.particle_ids, 
+            read_file = ReadLhe(name, var_of_interest=self.var_of_interest, particle_ids=self.particle_ids, 
                                 outgoing=self.outgoing, verbose=self.verbose)
             params = read_file.extract_params_from_path()
             if i == 0:            
